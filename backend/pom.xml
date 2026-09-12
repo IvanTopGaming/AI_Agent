@@ -9,6 +9,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
         <exec.mainClass>com.mycompany.ai_agent.AI_Agent</exec.mainClass>
+        <jackson-bom.version>2.18.9</jackson-bom.version>
+        <kotlin.version>1.8.20</kotlin.version>
     </properties>
     
     <build>

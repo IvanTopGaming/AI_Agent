@@ -3,7 +3,7 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 
 COPY index.html postcss.config.js tailwind.config.js tsconfig.json vite.config.ts ./
 COPY src ./src

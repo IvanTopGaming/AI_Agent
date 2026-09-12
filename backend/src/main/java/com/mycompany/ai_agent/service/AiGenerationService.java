@@ -70,7 +70,7 @@ public class AiGenerationService {
                 transactionTemplate.executeWithoutResult(status -> publishDelta(event.ticketId(), generation.messageId(), delta));
             });
             transactionTemplate.executeWithoutResult(status -> complete(event.ticketId(), generation, content.toString()));
-        } catch (Exception exception) {
+        } catch (Exception | LinkageError exception) {
             log.error("AI generation failed for ticket {}", event.ticketId(), exception);
             transactionTemplate.executeWithoutResult(status -> fail(event.ticketId(), generation, exception));
         }
@@ -154,7 +154,7 @@ public class AiGenerationService {
         }
     }
 
-    private void fail(UUID ticketId, Generation generation, Exception exception) {
+    private void fail(UUID ticketId, Generation generation, Throwable exception) {
         Ticket ticket = ticketRepository.findById(ticketId).orElse(null);
         Message message = messageRepository.findById(generation.messageId()).orElse(null);
         AiRun run = aiRunRepository.findById(generation.runId()).orElse(null);
