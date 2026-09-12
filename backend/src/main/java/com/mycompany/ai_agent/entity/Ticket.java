@@ -1,7 +1,6 @@
 package com.mycompany.ai_agent.entity;
 
-import com.openai.models.beta.threads.ThreadCreateAndRunParams.Thread.Message.Attachment;
-import com.openai.models.responses.ResponseSteerInput.ResponseSteerInputItem.Message;
+import com.mycompany.ai_agent.entity.Attachment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -100,7 +100,7 @@ CREATE TABLE attachments (
     original_name text NOT NULL,
     content_type text NOT NULL,
     size_bytes bigint NOT NULL,
-    checksum_sha256 char(64),
+    checksum_sha256 varchar(64),
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz,
     CONSTRAINT attachments_size_check CHECK (size_bytes > 0)
