@@ -14,18 +14,9 @@ import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
 
 @Entity
-@Table(
-        name = "message_feedback",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "message_feedback_unique",
-                        columnNames = {"message_id", "user_id"}
-                )
-        }
-)
+@Table(name = "message_feedback")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -40,7 +31,7 @@ public class MessageFeedback {
     private Message message;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @Column(nullable = false)

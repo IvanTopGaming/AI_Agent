@@ -1,4 +1,4 @@
-import { CATEGORIES, PRIORITIES } from '../utils/mockAi';
+import { CATEGORIES, PRIORITIES } from '../data/supportOptions';
 import type { CategoryId, PriorityId } from '../types/ticket';
 
 interface BadgeProps {

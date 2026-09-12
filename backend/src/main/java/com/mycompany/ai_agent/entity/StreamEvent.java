@@ -33,7 +33,7 @@ public class StreamEvent {
     @Column(name = "event_type", nullable = false)
     private String eventType;
 
-    @Column(nullable = false, columnDefinition = "jsonb")
+    @Column(nullable = false, columnDefinition = "text")
     private String payload;
 
     @Column(name = "created_at", nullable = false)

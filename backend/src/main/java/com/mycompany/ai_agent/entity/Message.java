@@ -1,6 +1,5 @@
 package com.mycompany.ai_agent.entity;
 
-import com.mycompany.ai_agent.entity.Attachment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -37,10 +36,10 @@ public class Message {
     @JoinColumn(name = "author_id")
     private User author;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String role;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String status;
 
     @Column(nullable = false)

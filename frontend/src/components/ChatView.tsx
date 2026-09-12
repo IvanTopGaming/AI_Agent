@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, ChevronUp, Clock3, FileText, Moon, PanelRight, Plus, ShieldCheck, Sparkles, Sun } from 'lucide-react';
+import { getMessages, sendFeedback, sendMessage as sendApiMessage, ticketEventsUrl, updateTicketStatus } from '../api/client';
+import { CATEGORIES } from '../data/supportOptions';
 import { ChatInput } from './ChatInput';
 import { ChatMessage } from './ChatMessage';
 import { CategoryBadge, PriorityBadge } from './Badge';
-import { CATEGORIES, generateAiResponse, generateFollowUpResponse, streamAiResponse } from '../utils/mockAi';
-import type { Attachment, ChatMessage as ChatMessageType, Ticket } from '../types/ticket';
+import type { ChatMessage as ChatMessageType, Ticket } from '../types/ticket';
 
 interface ChatViewProps {
   ticket: Ticket;
@@ -13,6 +14,34 @@ interface ChatViewProps {
   onToggleTheme: () => void;
   onNewTicket: () => void;
   onTicketUpdate: (ticket: Ticket) => void;
+}
+
+interface StartedEvent {
+  messageId: string;
+  role: 'assistant';
+  createdAt: string;
+}
+
+interface DeltaEvent {
+  messageId: string;
+  delta: string;
+}
+
+interface CompletedEvent {
+  messageId: string;
+  content: string;
+  createdAt: string;
+}
+
+interface FailedEvent {
+  messageId: string;
+  message: string;
+}
+
+interface TicketUpdatedEvent {
+  ticketId: string;
+  status: Ticket['status'];
+  updatedAt: string;
 }
 
 const STATUS_LABELS: Record<Ticket['status'], string> = {
@@ -23,8 +52,31 @@ const STATUS_LABELS: Record<Ticket['status'], string> = {
   escalated: 'Ожидает оператора',
 };
 
-function createId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function initialTicketMessage(ticket: Ticket): ChatMessageType {
+  return {
+    id: `ticket-${ticket.id}`,
+    sender: 'user',
+    content: `${ticket.title}\n\n${ticket.description}`,
+    timestamp: ticket.createdAt,
+    isInitialTicket: true,
+    ticketMeta: {
+      id: ticket.id,
+      number: ticket.number,
+      category: ticket.category,
+      priority: ticket.priority,
+      attachments: ticket.attachments,
+    },
+  };
+}
+
+function sortMessages(messages: ChatMessageType[]) {
+  return [...messages].sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
 }
 
 function TicketDetails({ ticket }: { ticket: Ticket }) {
@@ -58,32 +110,20 @@ function TicketDetails({ ticket }: { ticket: Ticket }) {
         <p className="text-xs leading-5 text-slate-600 dark:text-gray-300">{ticket.description}</p>
       </div>
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-gray-500">Вложения · {ticket.attachments?.length ?? 0}</p>
-        {ticket.attachments?.length ? <div className="space-y-2">{ticket.attachments.map((file) => <div key={file.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/5 dark:bg-white/5"><FileText className="h-3.5 w-3.5 shrink-0 text-indigo-500" /><span className="min-w-0 flex-1 truncate font-mono text-[10px] text-slate-600 dark:text-gray-300">{file.name}</span><span className="text-[10px] text-slate-400 dark:text-gray-500">{file.size}</span></div>)}</div> : <p className="text-xs text-slate-400 dark:text-gray-500">Файлы не прикреплены</p>}
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-gray-500">Вложения · {ticket.attachments.length}</p>
+        {ticket.attachments.length ? <div className="space-y-2">{ticket.attachments.map((file) => <a key={file.id} href={file.downloadUrl} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/5 dark:bg-white/5"><FileText className="h-3.5 w-3.5 shrink-0 text-indigo-500" /><span className="min-w-0 flex-1 truncate font-mono text-[10px] text-slate-600 dark:text-gray-300">{file.name}</span><span className="text-[10px] text-slate-400 dark:text-gray-500">{formatFileSize(file.sizeBytes)}</span></a>)}</div> : <p className="text-xs text-slate-400 dark:text-gray-500">Файлы не прикреплены</p>}
       </div>
     </div>
   );
 }
 
 export function ChatView({ ticket, theme, onToggleTheme, onNewTicket, onTicketUpdate }: ChatViewProps) {
-  const [messages, setMessages] = useState<ChatMessageType[]>(() => [{
-    id: `ticket-${ticket.id}`,
-    sender: 'user',
-    content: `${ticket.title}\n\n${ticket.description}`,
-    timestamp: ticket.createdAt,
-    isInitialTicket: true,
-    ticketMeta: {
-      id: ticket.id,
-      number: ticket.number,
-      category: ticket.category,
-      priority: ticket.priority,
-      attachments: ticket.attachments,
-    },
-  }]);
-  const [isStreaming, setIsStreaming] = useState(true);
+  const [messages, setMessages] = useState<ChatMessageType[]>(() => [initialTicketMessage(ticket)]);
+  const [isStreaming, setIsStreaming] = useState(ticket.status === 'ai_processing');
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const cancelStreamRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -91,52 +131,109 @@ export function ChatView({ ticket, theme, onToggleTheme, onNewTicket, onTicketUp
   }, [messages]);
 
   useEffect(() => {
-    const aiMessageId = createId('ai');
-    let completed = false;
-    setMessages((current) => [...current, { id: aiMessageId, sender: 'ai', content: '', timestamp: new Date(), isStreaming: true }]);
-    setIsStreaming(true);
+    let disposed = false;
+    let eventSource: EventSource | null = null;
 
-    const timeoutId = window.setTimeout(() => {
-      cancelStreamRef.current = streamAiResponse(
-        generateAiResponse(ticket),
-        (chunk) => setMessages((current) => current.map((message) => message.id === aiMessageId ? { ...message, content: message.content + chunk } : message)),
-        () => {
-          completed = true;
-          setMessages((current) => current.map((message) => message.id === aiMessageId ? { ...message, isStreaming: false } : message));
-          setIsStreaming(false);
-          onTicketUpdate({ ...ticket, status: 'ai_answered' });
-        },
-      );
-    }, 450);
+    const connect = () => {
+      if (disposed) return;
+      eventSource = new EventSource(ticketEventsUrl(ticket.id));
+      eventSource.onopen = () => setError(null);
+      eventSource.onerror = () => setError('Связь с сервером прервана, переподключаемся...');
+      eventSource.addEventListener('message.started', (rawEvent) => {
+        const event = JSON.parse((rawEvent as MessageEvent<string>).data) as StartedEvent;
+        setIsStreaming(true);
+        setMessages((current) => current.some((message) => message.id === event.messageId) ? current : [...current, {
+          id: event.messageId,
+          sender: 'ai',
+          content: '',
+          timestamp: new Date(event.createdAt),
+          isStreaming: true,
+        }]);
+      });
+      eventSource.addEventListener('message.delta', (rawEvent) => {
+        const event = JSON.parse((rawEvent as MessageEvent<string>).data) as DeltaEvent;
+        setMessages((current) => current.map((message) => message.id === event.messageId ? { ...message, content: message.content + event.delta, isStreaming: true } : message));
+      });
+      eventSource.addEventListener('message.completed', (rawEvent) => {
+        const event = JSON.parse((rawEvent as MessageEvent<string>).data) as CompletedEvent;
+        setIsStreaming(false);
+        setMessages((current) => {
+          const completed: ChatMessageType = { id: event.messageId, sender: 'ai', content: event.content, timestamp: new Date(event.createdAt), isStreaming: false };
+          return current.some((message) => message.id === event.messageId)
+            ? current.map((message) => message.id === event.messageId ? { ...message, ...completed } : message)
+            : sortMessages([...current, completed]);
+        });
+      });
+      eventSource.addEventListener('message.failed', (rawEvent) => {
+        const event = JSON.parse((rawEvent as MessageEvent<string>).data) as FailedEvent;
+        setIsStreaming(false);
+        setError(event.message);
+        setMessages((current) => current.map((message) => message.id === event.messageId ? { ...message, content: event.message, isStreaming: false } : message));
+      });
+      eventSource.addEventListener('ticket.updated', (rawEvent) => {
+        const event = JSON.parse((rawEvent as MessageEvent<string>).data) as TicketUpdatedEvent;
+        onTicketUpdate({ ...ticket, status: event.status, updatedAt: new Date(event.updatedAt) });
+      });
+    };
+
+    void getMessages(ticket.id)
+      .then((items) => {
+        if (disposed || !items.length) return;
+        const firstUserIndex = items.findIndex((message) => message.sender === 'user');
+        const hydrated = items.map((message, index) => index === firstUserIndex ? {
+          ...message,
+          content: `${ticket.title}\n\n${ticket.description}`,
+          isInitialTicket: true,
+          ticketMeta: {
+            id: ticket.id,
+            number: ticket.number,
+            category: ticket.category,
+            priority: ticket.priority,
+            attachments: ticket.attachments,
+          },
+        } : message);
+        setMessages(hydrated);
+      })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить сообщения'))
+      .finally(connect);
 
     return () => {
-      window.clearTimeout(timeoutId);
-      cancelStreamRef.current?.();
-      if (!completed) setMessages((current) => current.filter((message) => message.id !== aiMessageId));
+      disposed = true;
+      eventSource?.close();
     };
   }, [ticket.id]);
 
-  const sendMessage = (text: string, attachments?: Attachment[]) => {
-    if (isStreaming) return;
-    const userMessage: ChatMessageType = { id: createId('user'), sender: 'user', content: text, timestamp: new Date(), attachments };
-    const aiMessageId = createId('ai');
-    const aiMessage: ChatMessageType = { id: aiMessageId, sender: 'ai', content: '', timestamp: new Date(), isStreaming: true };
-    setMessages((current) => [...current, userMessage, aiMessage]);
-    setIsStreaming(true);
+  const sendMessage = async (text: string, files: File[] = []) => {
+    if (isStreaming || isSending) return;
+    setIsSending(true);
+    setError(null);
+    try {
+      const message = await sendApiMessage(ticket.id, text, files);
+      setMessages((current) => sortMessages([...current.filter((item) => item.id !== message.id), message]));
+      setIsStreaming(true);
+      onTicketUpdate({ ...ticket, status: 'ai_processing', updatedAt: new Date() });
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : 'Не удалось отправить сообщение');
+    } finally {
+      setIsSending(false);
+    }
+  };
 
-    let nextStatus = ticket.status;
-    if (text.toLocaleLowerCase('ru-RU').includes('оператор')) nextStatus = 'escalated';
-    if (text.toLocaleLowerCase('ru-RU').includes('решение помогло')) nextStatus = 'resolved';
-    if (nextStatus !== ticket.status) onTicketUpdate({ ...ticket, status: nextStatus });
+  const handleAction = async (action: string) => {
+    if (action === 'Решение помогло' || action.includes('оператора')) {
+      setError(null);
+      try {
+        onTicketUpdate(await updateTicketStatus(ticket.id, action === 'Решение помогло' ? 'resolved' : 'escalated'));
+      } catch (updateError) {
+        setError(updateError instanceof Error ? updateError.message : 'Не удалось изменить статус');
+      }
+      return;
+    }
+    await sendMessage(action);
+  };
 
-    cancelStreamRef.current = streamAiResponse(
-      generateFollowUpResponse(ticket, text),
-      (chunk) => setMessages((current) => current.map((message) => message.id === aiMessageId ? { ...message, content: message.content + chunk } : message)),
-      () => {
-        setMessages((current) => current.map((message) => message.id === aiMessageId ? { ...message, isStreaming: false } : message));
-        setIsStreaming(false);
-      },
-    );
+  const handleFeedback = (messageId: string, rating: 'positive' | 'negative') => {
+    void sendFeedback(messageId, rating).catch((feedbackError) => setError(feedbackError instanceof Error ? feedbackError.message : 'Не удалось сохранить оценку'));
   };
 
   return (
@@ -159,14 +256,15 @@ export function ChatView({ ticket, theme, onToggleTheme, onNewTicket, onTicketUp
           <AnimatePresence initial={false}>
             {messages.map((message, index) => (
               <motion.div key={message.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
-                <ChatMessage message={message} showActions={!isStreaming && index === messages.length - 1 && message.sender === 'ai'} onActionClick={sendMessage} />
+                <ChatMessage message={message} showActions={!isStreaming && index === messages.length - 1 && message.sender === 'ai'} onActionClick={handleAction} onFeedback={handleFeedback} />
               </motion.div>
             ))}
           </AnimatePresence>
+          {error && <p className="mx-auto my-2 max-w-3xl rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">{error}</p>}
         </div>
 
         <div className="bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC] to-transparent px-4 pb-4 pt-3 dark:from-[#0B0C10] dark:via-[#0B0C10] sm:px-6 sm:pb-6 lg:px-8">
-          <ChatInput onSendMessage={sendMessage} disabled={isStreaming} />
+          <ChatInput onSendMessage={sendMessage} disabled={isStreaming || isSending || ticket.status === 'resolved'} />
         </div>
       </div>
 

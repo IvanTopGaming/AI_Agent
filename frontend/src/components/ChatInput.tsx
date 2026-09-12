@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { CornerDownLeft, FileText, Paperclip, Send, Smile, X } from 'lucide-react';
-import type { Attachment } from '../types/ticket';
+import type { PendingAttachment } from '../types/ticket';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 
 interface ChatInputProps {
-  onSendMessage: (text: string, attachments?: Attachment[]) => void;
+  onSendMessage: (text: string, files?: File[]) => void;
   disabled?: boolean;
 }
 
@@ -18,7 +18,7 @@ function formatFileSize(bytes: number) {
 
 export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
   const [text, setText] = useState('');
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,8 +35,9 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
       const nextAttachments = Array.from(event.target.files).map((file, index) => ({
         id: `chat-att-${Date.now()}-${index}`,
         name: file.name,
-        size: formatFileSize(file.size),
-        type: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        contentType: file.type || 'application/octet-stream',
+        file,
       }));
       setAttachments((current) => [...current, ...nextAttachments]);
     }
@@ -45,7 +46,7 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
 
   const submit = () => {
     if (disabled || (!text.trim() && !attachments.length)) return;
-    onSendMessage(text.trim() || 'Прикрепил файлы для диагностики.', attachments.length ? attachments : undefined);
+    onSendMessage(text.trim() || 'Прикрепил файлы для диагностики.', attachments.map((attachment) => attachment.file));
     setText('');
     setAttachments([]);
     setMenuOpen(false);
@@ -79,6 +80,7 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
             <span key={file.id} className="flex max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
               <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden="true" />
               <span className="max-w-40 truncate font-mono text-[11px]">{file.name}</span>
+              <span className="text-[10px] text-slate-400">{formatFileSize(file.sizeBytes)}</span>
               <button type="button" onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))} aria-label={`Удалить ${file.name}`} className="ml-1 text-slate-400 transition hover:text-rose-500"><X className="h-3 w-3" /></button>
             </span>
           ))}

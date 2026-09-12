@@ -1,6 +1,5 @@
 package com.mycompany.ai_agent.entity;
 
-import com.mycompany.ai_agent.entity.Attachment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,6 +18,8 @@ import javax.persistence.JoinTable;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
+import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.GenerationTime;
 
 @Entity
 @Table(name = "tickets")
@@ -31,8 +32,8 @@ public class Ticket {
     @GeneratedValue
     private UUID id;
 
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ticket_number", nullable = false, unique = true)
+    @Generated(GenerationTime.INSERT)
+    @Column(name = "ticket_number", nullable = false, unique = true, insertable = false, updatable = false)
     private Long ticketNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -45,13 +46,13 @@ public class Ticket {
     @Column(nullable = false)
     private String description;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String category;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String priority;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String status;
 
     @ManyToOne(fetch = FetchType.LAZY)

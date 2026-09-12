@@ -22,11 +22,17 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/support
       SPRING_DATASOURCE_USERNAME: support
       SPRING_DATASOURCE_PASSWORD: support
-      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_API_URL: ${LLM_API_URL:-https://ai.api.cloud.yandex.net/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_MODEL: ${LLM_MODEL:-yandexgpt}
+      LLM_ORGANIZATION: ${LLM_ORGANIZATION:-b1ghmng15krs44a6li2q}
+      LLM_PROMPT_ID: ${LLM_PROMPT_ID:-fvtcdisgqkmtebld6vdh}
+      ATTACHMENTS_PATH: /data/attachments
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:3000,http://localhost:5173,http://localhost:8081}
     ports:
       - "8080:8080"
+    volumes:
+      - attachment_data:/data/attachments
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +41,10 @@ services:
     build:
       context: ./frontend
     ports:
-      - "3000:80"
+      - "80:80"
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
+  attachment_data:

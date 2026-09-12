@@ -19,8 +19,25 @@ export interface Priority {
 export interface Attachment {
   id: string;
   name: string;
-  size: string;
-  type: string;
+  contentType: string;
+  sizeBytes: number;
+  downloadUrl: string;
+}
+
+export interface PendingAttachment {
+  id: string;
+  name: string;
+  contentType: string;
+  sizeBytes: number;
+  file: File;
+}
+
+export interface TicketDraft {
+  title: string;
+  category: CategoryId;
+  priority: PriorityId;
+  description: string;
+  files: File[];
 }
 
 export interface Ticket {
@@ -31,8 +48,9 @@ export interface Ticket {
   priority: PriorityId;
   description: string;
   createdAt: Date;
+  updatedAt: Date;
   status: 'open' | 'ai_processing' | 'ai_answered' | 'resolved' | 'escalated';
-  attachments?: Attachment[];
+  attachments: Attachment[];
 }
 
 export interface ChatMessage {
@@ -50,9 +68,4 @@ export interface ChatMessage {
   };
   isStreaming?: boolean;
   attachments?: Attachment[];
-  codeSnippet?: {
-    language: string;
-    code: string;
-  };
-  actionSuggestions?: string[];
 }

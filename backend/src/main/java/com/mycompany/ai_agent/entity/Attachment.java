@@ -43,7 +43,7 @@ public class Attachment {
     @Column(name = "size_bytes", nullable = false)
     private Long sizeBytes;
     
-    @Column(columnDefinition = "char(64)")
+    @Column(name = "checksum_sha256", length = 64)
     private String checksumSha256;
 
     @Column(name = "created_at", nullable = false)

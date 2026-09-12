@@ -7,7 +7,14 @@ import type { ReactNode } from 'react';
 interface ChatMessageProps {
   message: ChatMessageType;
   onActionClick?: (action: string) => void;
+  onFeedback?: (messageId: string, rating: 'positive' | 'negative') => void;
   showActions?: boolean;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function InlineText({ children }: { children: string }) {
@@ -20,7 +27,7 @@ function InlineText({ children }: { children: string }) {
   });
 }
 
-export function ChatMessage({ message, onActionClick, showActions = false }: ChatMessageProps) {
+export function ChatMessage({ message, onActionClick, onFeedback, showActions = false }: ChatMessageProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [messageCopied, setMessageCopied] = useState(false);
   const [feedback, setFeedback] = useState<'liked' | 'disliked' | null>(null);
@@ -75,7 +82,7 @@ export function ChatMessage({ message, onActionClick, showActions = false }: Cha
             <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-gray-500"><Clock className="h-3 w-3" />{message.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-gray-200">{message.content}</p>
-          {message.ticketMeta.attachments?.length ? <div className="mt-4 flex flex-wrap gap-2 border-t border-indigo-100 pt-3 dark:border-indigo-500/10">{message.ticketMeta.attachments.map((file) => <span key={file.id} className="flex items-center gap-1.5 rounded-md border border-indigo-100 bg-white/60 px-2.5 py-1 text-[11px] text-slate-600 dark:border-white/5 dark:bg-white/5 dark:text-gray-300"><FileText className="h-3 w-3 text-indigo-500" />{file.name}<span className="text-slate-400 dark:text-gray-500">{file.size}</span></span>)}</div> : null}
+          {message.ticketMeta.attachments?.length ? <div className="mt-4 flex flex-wrap gap-2 border-t border-indigo-100 pt-3 dark:border-indigo-500/10">{message.ticketMeta.attachments.map((file) => <a key={file.id} href={file.downloadUrl} className="flex items-center gap-1.5 rounded-md border border-indigo-100 bg-white/60 px-2.5 py-1 text-[11px] text-slate-600 dark:border-white/5 dark:bg-white/5 dark:text-gray-300"><FileText className="h-3 w-3 text-indigo-500" />{file.name}<span className="text-slate-400 dark:text-gray-500">{formatFileSize(file.sizeBytes)}</span></a>)}</div> : null}
         </div>
       </article>
     );
@@ -87,7 +94,7 @@ export function ChatMessage({ message, onActionClick, showActions = false }: Cha
         <div className="flex max-w-[92%] items-start gap-2.5 sm:max-w-3xl">
           <div className="rounded-2xl rounded-tr-sm bg-indigo-600 px-4 py-3 text-sm text-white shadow-md">
             <p className="whitespace-pre-wrap leading-6">{message.content}</p>
-            {message.attachments?.length ? <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/15 pt-2">{message.attachments.map((file) => <span key={file.id} className="flex items-center gap-1 rounded bg-white/10 px-2 py-1 font-mono text-[10px]"><FileText className="h-3 w-3" />{file.name}</span>)}</div> : null}
+            {message.attachments?.length ? <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/15 pt-2">{message.attachments.map((file) => <a key={file.id} href={file.downloadUrl} className="flex items-center gap-1 rounded bg-white/10 px-2 py-1 font-mono text-[10px]"><FileText className="h-3 w-3" />{file.name}</a>)}</div> : null}
             <p className="mt-1 text-right font-mono text-[10px] text-indigo-200/70">{message.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
           <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-700 text-white"><User className="h-4 w-4" /></span>
@@ -113,8 +120,8 @@ export function ChatMessage({ message, onActionClick, showActions = false }: Cha
           {!message.isStreaming && message.content && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-white/5">
               <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={() => setFeedback('liked')} aria-label="Ответ помог" className={`rounded-lg border p-1.5 transition ${feedback === 'liked' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-slate-200 hover:text-slate-700 dark:border-white/5 dark:hover:text-white'}`}><ThumbsUp className="h-3.5 w-3.5" /></button>
-                <button type="button" onClick={() => setFeedback('disliked')} aria-label="Ответ не помог" className={`rounded-lg border p-1.5 transition ${feedback === 'disliked' ? 'border-rose-500/30 bg-rose-500/10 text-rose-500' : 'border-slate-200 hover:text-slate-700 dark:border-white/5 dark:hover:text-white'}`}><ThumbsDown className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => { setFeedback('liked'); onFeedback?.(message.id, 'positive'); }} aria-label="Ответ помог" className={`rounded-lg border p-1.5 transition ${feedback === 'liked' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-slate-200 hover:text-slate-700 dark:border-white/5 dark:hover:text-white'}`}><ThumbsUp className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => { setFeedback('disliked'); onFeedback?.(message.id, 'negative'); }} aria-label="Ответ не помог" className={`rounded-lg border p-1.5 transition ${feedback === 'disliked' ? 'border-rose-500/30 bg-rose-500/10 text-rose-500' : 'border-slate-200 hover:text-slate-700 dark:border-white/5 dark:hover:text-white'}`}><ThumbsDown className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => void copyText(message.content)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] transition hover:text-slate-700 dark:border-white/5 dark:hover:text-white">{messageCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}{messageCopied ? 'Скопировано' : 'Копировать'}</button>
               </div>
               {showActions && onActionClick && <div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => onActionClick('Решение помогло')} className="rounded-md border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 transition hover:border-emerald-500/30 hover:text-emerald-600 dark:border-white/10 dark:text-gray-300">Решение помогло ✓</button><button type="button" onClick={() => onActionClick('Уточнить детали')} className="rounded-md border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 transition hover:border-indigo-500/30 hover:text-indigo-600 dark:border-white/10 dark:text-gray-300">Уточнить детали</button><button type="button" onClick={() => onActionClick('Позвать человека-оператора')} className="rounded-md border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 transition hover:border-amber-500/30 hover:text-amber-600 dark:border-white/10 dark:text-gray-300">Позвать оператора</button></div>}

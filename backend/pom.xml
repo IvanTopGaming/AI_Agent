@@ -9,7 +9,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
         <exec.mainClass>com.mycompany.ai_agent.AI_Agent</exec.mainClass>
-        <kotlin.version>1.8.22</kotlin.version>
     </properties>
     
     <build>
@@ -69,32 +68,12 @@
             <artifactId>flyway-core</artifactId>
         </dependency>
         
-        <!-- Thymeleaf -->
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-        
-        <dependency>
-            <groupId>org.thymeleaf.extras</groupId>
-            <artifactId>thymeleaf-extras-springsecurity5</artifactId>
-        </dependency>
-        
         <!-- Lombok -->
         
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.44</version>
-        </dependency>
-        
-        <!-- PrettyTime -->
-        
-        <dependency>
-            <groupId>org.ocpsoft.prettytime</groupId>
-            <artifactId>prettytime</artifactId>
-            <version>5.0.6.Final</version>
         </dependency>
         
         <!-- OpenAI -->

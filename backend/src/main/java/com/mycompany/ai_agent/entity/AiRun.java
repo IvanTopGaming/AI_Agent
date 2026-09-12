@@ -44,7 +44,7 @@ public class AiRun {
     @Column(nullable = false)
     private String model;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String status;
 
     @Column(name = "prompt_tokens")

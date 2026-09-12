@@ -59,9 +59,9 @@ CREATE TABLE tickets (
     requester_id uuid REFERENCES users(id) ON DELETE SET NULL,
     title varchar(100) NOT NULL,
     description text NOT NULL,
-    category ticket_category NOT NULL,
-    priority ticket_priority NOT NULL DEFAULT 'medium',
-    status ticket_status NOT NULL DEFAULT 'open',
+    category varchar(20) NOT NULL,
+    priority varchar(20) NOT NULL DEFAULT 'medium',
+    status varchar(20) NOT NULL DEFAULT 'open',
     assigned_operator_id uuid REFERENCES users(id) ON DELETE SET NULL,
     resolved_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -69,6 +69,9 @@ CREATE TABLE tickets (
     CONSTRAINT tickets_ticket_number_unique UNIQUE (ticket_number),
     CONSTRAINT tickets_title_not_blank CHECK (length(btrim(title)) > 0),
     CONSTRAINT tickets_description_not_blank CHECK (length(btrim(description)) > 0),
+    CONSTRAINT tickets_category_check CHECK (category IN ('technical', 'billing', 'bug', 'integration', 'general')),
+    CONSTRAINT tickets_priority_check CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+    CONSTRAINT tickets_status_check CHECK (status IN ('open', 'ai_processing', 'ai_answered', 'resolved', 'escalated')),
     CONSTRAINT tickets_resolved_at_check CHECK (
         status <> 'resolved' OR resolved_at IS NOT NULL
     )
@@ -78,8 +81,8 @@ CREATE TABLE messages (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_id uuid NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     author_id uuid REFERENCES users(id) ON DELETE SET NULL,
-    role message_role NOT NULL,
-    status message_status NOT NULL DEFAULT 'completed',
+    role varchar(20) NOT NULL,
+    status varchar(20) NOT NULL DEFAULT 'completed',
     content text NOT NULL DEFAULT '',
     format varchar(20) NOT NULL DEFAULT 'markdown',
     error_code text,
@@ -88,9 +91,8 @@ CREATE TABLE messages (
     updated_at timestamptz NOT NULL DEFAULT now(),
     completed_at timestamptz,
     CONSTRAINT messages_format_check CHECK (format IN ('plain', 'markdown')),
-    CONSTRAINT messages_author_check CHECK (
-        role <> 'user' OR author_id IS NOT NULL
-    )
+    CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system')),
+    CONSTRAINT messages_status_check CHECK (status IN ('queued', 'streaming', 'completed', 'failed'))
 );
 
 CREATE TABLE attachments (
@@ -125,13 +127,13 @@ CREATE TABLE message_attachments (
 CREATE TABLE message_feedback (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     message_id uuid NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
     rating smallint NOT NULL,
     comment text,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT message_feedback_rating_check CHECK (rating IN (-1, 1)),
-    CONSTRAINT message_feedback_unique UNIQUE (message_id, user_id)
+    CONSTRAINT message_feedback_message_unique UNIQUE (message_id)
 );
 
 CREATE TABLE ticket_status_history (
@@ -154,7 +156,7 @@ CREATE TABLE ai_runs (
     response_message_id uuid REFERENCES messages(id) ON DELETE SET NULL,
     provider text NOT NULL,
     model text NOT NULL,
-    status ai_run_status NOT NULL DEFAULT 'queued',
+    status varchar(20) NOT NULL DEFAULT 'queued',
     prompt_tokens integer,
     completion_tokens integer,
     error_code text,
@@ -167,14 +169,15 @@ CREATE TABLE ai_runs (
     ),
     CONSTRAINT ai_runs_completion_tokens_check CHECK (
         completion_tokens IS NULL OR completion_tokens >= 0
-    )
+    ),
+    CONSTRAINT ai_runs_status_check CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled'))
 );
 
 CREATE TABLE stream_events (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ticket_id uuid NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     event_type text NOT NULL,
-    payload jsonb NOT NULL,
+    payload text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT stream_events_type_check CHECK (
         event_type IN (

@@ -15,14 +15,16 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
-import { CATEGORIES, PRIORITIES } from '../utils/mockAi';
-import type { Attachment, CategoryId, PriorityId, Ticket } from '../types/ticket';
+import { CATEGORIES, PRIORITIES } from '../data/supportOptions';
+import type { CategoryId, PendingAttachment, PriorityId, TicketDraft } from '../types/ticket';
 import type { ChangeEvent, ComponentType, DragEvent, FormEvent, KeyboardEvent } from 'react';
 
 interface TicketComposerProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  onSubmit: (ticket: Omit<Ticket, 'id' | 'number' | 'createdAt' | 'status'>) => void;
+  onSubmit: (ticket: TicketDraft) => void;
+  isSubmitting?: boolean;
+  submitError?: string | null;
 }
 
 interface QuickTemplate {
@@ -77,17 +79,18 @@ function filesToAttachments(files: FileList | File[]) {
   return Array.from(files).map((file, index) => ({
     id: `att-${Date.now()}-${index}`,
     name: file.name,
-    size: formatFileSize(file.size),
-    type: file.type || 'application/octet-stream',
+    sizeBytes: file.size,
+    contentType: file.type || 'application/octet-stream',
+    file,
   }));
 }
 
-export function TicketComposer({ theme, onToggleTheme, onSubmit }: TicketComposerProps) {
+export function TicketComposer({ theme, onToggleTheme, onSubmit, isSubmitting = false, submitError }: TicketComposerProps) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<CategoryId>('technical');
   const [priority, setPriority] = useState<PriorityId>('medium');
   const [description, setDescription] = useState('');
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -128,7 +131,7 @@ export function TicketComposer({ theme, onToggleTheme, onSubmit }: TicketCompose
       category,
       priority,
       description: description.trim(),
-      attachments: attachments.length ? attachments : undefined,
+      files: attachments.map((attachment) => attachment.file),
     });
   };
 
@@ -173,10 +176,11 @@ export function TicketComposer({ theme, onToggleTheme, onSubmit }: TicketCompose
           <div className={`rounded-2xl border bg-white p-3 shadow-2xl shadow-slate-300/30 dark:bg-[#161722] dark:shadow-black/30 ${errors.description ? 'border-rose-500' : 'border-slate-200 dark:border-white/10'}`}>
             <textarea ref={textareaRef} id="ticket-description" value={description} onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })); }} placeholder="Опиши проблему, приложи текст ошибки и шаги воспроизведения..." aria-invalid={Boolean(errors.description)} aria-describedby={errors.description ? 'ticket-description-error' : undefined} className="max-h-80 min-h-[120px] w-full resize-none overflow-y-auto bg-transparent px-2 py-2 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-gray-100 dark:placeholder:text-gray-500" />
             {errors.description && <p id="ticket-description-error" className="mb-2 flex items-center gap-1 px-2 text-xs text-rose-500"><AlertCircle className="h-3.5 w-3.5" />{errors.description}</p>}
-            {attachments.length > 0 && <div className="mb-3 flex flex-wrap gap-2 border-t border-slate-100 px-2 pt-3 dark:border-white/5">{attachments.map((file) => <span key={file.id} className="flex max-w-full items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 dark:bg-white/5 dark:text-gray-300"><FileText className="h-3.5 w-3.5 text-indigo-500" /><span className="max-w-40 truncate font-mono">{file.name}</span><button type="button" onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))} aria-label={`Удалить ${file.name}`} className="text-slate-400 hover:text-rose-500"><X className="h-3 w-3" /></button></span>)}</div>}
+            {attachments.length > 0 && <div className="mb-3 flex flex-wrap gap-2 border-t border-slate-100 px-2 pt-3 dark:border-white/5">{attachments.map((file) => <span key={file.id} className="flex max-w-full items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 dark:bg-white/5 dark:text-gray-300"><FileText className="h-3.5 w-3.5 text-indigo-500" /><span className="max-w-40 truncate font-mono">{file.name}</span><span className="text-slate-400">{formatFileSize(file.sizeBytes)}</span><button type="button" onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))} aria-label={`Удалить ${file.name}`} className="text-slate-400 hover:text-rose-500"><X className="h-3 w-3" /></button></span>)}</div>}
+            {submitError && <p className="mb-2 flex items-center gap-1 px-2 text-xs text-rose-500"><AlertCircle className="h-3.5 w-3.5" />{submitError}</p>}
             <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-1 pt-3 dark:border-white/5">
               <div className="flex items-center gap-2"><button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Прикрепить файл" className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-indigo-500 dark:hover:bg-white/5"><Paperclip className="h-4 w-4" /></button><span className="hidden items-center gap-1 font-mono text-[10px] text-slate-400 sm:flex"><CornerDownLeft className="h-3 w-3" />Ctrl / Cmd + Enter</span></div>
-              <div className="flex items-center gap-3"><span className="hidden font-mono text-[10px] text-slate-400 sm:inline">{description.length} знаков</span><button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-medium text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-500 active:scale-[0.98]">Начать диалог<ArrowRight className="h-4 w-4" /></button></div>
+              <div className="flex items-center gap-3"><span className="hidden font-mono text-[10px] text-slate-400 sm:inline">{description.length} знаков</span><button type="submit" disabled={isSubmitting} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-medium text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-500 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60">{isSubmitting ? 'Создаём...' : 'Начать диалог'}<ArrowRight className="h-4 w-4" /></button></div>
             </div>
           </div>
         </div>

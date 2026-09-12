@@ -1,38 +1,68 @@
 package com.mycompany.ai_agent.service;
 
+import com.mycompany.ai_agent.exception.ApiException;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.responses.ResponseCreateParams;
 import com.openai.models.responses.ResponsePrompt;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import com.openai.models.responses.ResponseStreamEvent;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 
-@Slf4j
+import java.util.function.Consumer;
+
 @Service
 public class AIService {
 
-    @Value("${openai.api-key}")
-    private String apiKey;
+    private final String apiKey;
+    private final String baseUrl;
+    private final String organization;
+    private final String promptId;
+    private final String model;
 
-    public StreamResponse getAnswerStream(String promt) {
+    public AIService(
+            @Value("${llm.api-key}") String apiKey,
+            @Value("${llm.base-url}") String baseUrl,
+            @Value("${llm.organization}") String organization,
+            @Value("${llm.prompt-id}") String promptId,
+            @Value("${llm.model}") String model
+    ) {
+        this.apiKey = apiKey;
+        this.baseUrl = baseUrl;
+        this.organization = organization;
+        this.promptId = promptId;
+        this.model = model;
+    }
+
+    public void streamAnswer(String input, Consumer<String> onDelta) {
+        if (apiKey.isBlank()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_NOT_CONFIGURED", "Ключ AI-провайдера не настроен");
+        }
+
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(apiKey)
-                .baseUrl("https://ai.api.cloud.yandex.net/v1")
-                .organization("b1ghmng15krs44a6li2q")
+                .baseUrl(baseUrl)
+                .organization(organization)
                 .build();
 
         ResponseCreateParams params = ResponseCreateParams.builder()
-                .prompt(ResponsePrompt.builder()
-                        .id("fvtcdisgqkmtebld6vdh")
-                        .build())
-                .input(promt)
+                .prompt(ResponsePrompt.builder().id(promptId).build())
+                .input(input)
                 .build();
 
-        StreamResponse response = client.responses().createStreaming(params);
-
-        return response;
+        try (StreamResponse<ResponseStreamEvent> response = client.responses().createStreaming(params)) {
+            response.stream().forEach(event -> event.outputTextDelta()
+                    .ifPresent(delta -> onDelta.accept(delta.delta())));
+        }
     }
 
+    public String getProvider() {
+        return "yandex-cloud";
+    }
+
+    public String getModel() {
+        return model;
+    }
 }
