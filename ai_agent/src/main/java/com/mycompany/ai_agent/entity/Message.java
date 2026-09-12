@@ -1,51 +1,83 @@
 package com.mycompany.ai_agent.entity;
 
-import java.time.LocalDateTime;
+import com.openai.models.beta.threads.ThreadCreateAndRunParams.Thread.Message.Attachment;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.OffsetDateTime;
+import java.util.*;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.JoinTable;
 import javax.persistence.ManyToOne;
-import javax.persistence.SequenceGenerator;
+import javax.persistence.OneToMany;
 import javax.persistence.Table;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
 
-
-@ToString
 @Entity
 @Table(name = "messages")
-
 @Getter
 @Setter
 @NoArgsConstructor
 public class Message {
-    
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "message_generator")
-    @SequenceGenerator(
-            name = "message_generator",
-            sequenceName = "message_seq",
-            allocationSize = 1
-    )
+
     @Id
-    Long id;
+    @GeneratedValue
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "request_id")
-    Request request_id;
+    @JoinColumn(name = "ticket_id", nullable = false)
+    private Ticket ticket;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_id")
+    private User author;
 
     @Column(nullable = false)
-    String author;
+    private String role;
 
     @Column(nullable = false)
-    String body;
+    private String status;
 
     @Column(nullable = false)
-    LocalDateTime created_at;
-    
+    private String content;
+
+    @Column(nullable = false, length = 20)
+    private String format;
+
+    @Column(name = "error_code")
+    private String errorCode;
+
+    @Column(name = "error_message")
+    private String errorMessage;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @Column(name = "completed_at")
+    private OffsetDateTime completedAt;
+
+    @OneToMany(mappedBy = "requestMessage")
+    private List<AiRun> requestAiRuns = new ArrayList<>();
+
+    @OneToMany(mappedBy = "responseMessage")
+    private List<AiRun> responseAiRuns = new ArrayList<>();
+
+    @OneToMany(mappedBy = "message")
+    private List<MessageFeedback> feedback = new ArrayList<>();
+
+    @OneToMany
+    @JoinTable(
+            name = "message_attachments",
+            joinColumns = @JoinColumn(name = "message_id"),
+            inverseJoinColumns = @JoinColumn(name = "attachment_id")
+    )
+    private List<Attachment> attachments = new ArrayList<>();
 }
