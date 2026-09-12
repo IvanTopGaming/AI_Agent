@@ -17,8 +17,8 @@ CREATE TABLE messages (
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	
 	request_id BIGINT NOT NULL,
-	
-	CONSTRAINT fk_task_project
+
+    CONSTRAINT fk_message_request
         FOREIGN KEY (request_id)
         REFERENCES requests(id)
 );

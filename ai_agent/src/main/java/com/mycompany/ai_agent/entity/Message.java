@@ -9,6 +9,7 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,16 +26,18 @@ import lombok.ToString;
 @NoArgsConstructor
 public class Message {
     
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "message_seq")
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "message_generator")
+    @SequenceGenerator(
+            name = "message_generator",
+            sequenceName = "message_seq",
+            allocationSize = 1
+    )
     @Id
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_uid")
+    @JoinColumn(name = "request_id")
     Request request_id;
-    
-    @Column(nullable = false)
-    String user_uid;
 
     @Column(nullable = false)
     String author;
@@ -43,6 +46,6 @@ public class Message {
     String body;
 
     @Column(nullable = false)
-    LocalDateTime created_ad;
+    LocalDateTime created_at;
     
 }

@@ -7,8 +7,9 @@
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>17</maven.compiler.release>
         <exec.mainClass>com.mycompany.ai_agent.AI_Agent</exec.mainClass>
+        <kotlin.version>1.8.22</kotlin.version>
     </properties>
     
     <build>
@@ -94,6 +95,14 @@
             <groupId>org.ocpsoft.prettytime</groupId>
             <artifactId>prettytime</artifactId>
             <version>5.0.6.Final</version>
+        </dependency>
+        
+        <!-- OpenAI -->
+        
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>4.63.1</version>
         </dependency>
         
     </dependencies>
